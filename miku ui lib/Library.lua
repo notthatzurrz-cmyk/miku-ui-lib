@@ -2586,7 +2586,7 @@ do
         Position = UDim2.new(0, 18, 0, 0);
         Size = UDim2.new(1, -24, 1, 0);
         TextSize = 12;
-        Text = 'miku';
+        Text = 'yuno';
         TextXAlignment = Enum.TextXAlignment.Left;
         ZIndex = 201;
         Parent = WatermarkOuter;
@@ -2774,7 +2774,7 @@ end
 
 function Library:Loader(Info)
     Info = Info or {};
-    local Name = Info.Name or 'MIKU';
+    local Name = Info.Name or 'YUNO';
     local Duration = Info.Duration or 2;
 
     task.spawn(function()
@@ -2950,7 +2950,7 @@ function Library:CreateWindow(...)
     if type(...) == 'table' then Config = ...;
     else Config.Title = Arguments[1]; Config.AutoShow = Arguments[2] or false; end
 
-    Config.Title = Config.Title or 'MIKU';
+    Config.Title = Config.Title or 'YUNO';
     Config.TabPadding = Config.TabPadding or 6;
     Config.MenuFadeTime = Config.MenuFadeTime or 0.2;
 
@@ -3148,115 +3148,14 @@ function Library:CreateWindow(...)
         Parent = Sidebar,
     });
 
-    -- ================================================================
-    -- BRANDING HEADER (Non-Interactive — just logo + name)
-    -- ================================================================
-    local BrandPill = Library:Create('Frame', {
-        Name = 'MikuBrandPill',
-        Position = UDim2.fromOffset(8, 8),
-        Size = UDim2.new(1, -16, 0, 46),
-        BackgroundColor3 = Color3.fromRGB(28, 24, 42),
-        BackgroundTransparency = 0.28,
-        ClipsDescendants = true,
-        ZIndex = 51,
-        Parent = Sidebar,
-    });
-    Library:Create('UICorner', { CornerRadius = UDim.new(0, 12), Parent = BrandPill });
-    local BrandStroke = Library:Create('UIStroke', {
-        Color = THEME.Accent,
-        Transparency = 0.72,
-        Thickness = 1,
-        Parent = BrandPill
-    });
-    -- Subtle accent gradient for branding feel
-    Library:Create('UIGradient', {
-        Rotation = 135,
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 35, 70)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(26, 22, 40)),
-        }),
-        Parent = BrandPill,
-    });
-
-    local customLogoAsset = nil
-    pcall(function()
-        local getAsset = getcustomasset or getsynasset
-        if getAsset then
-            for _, p in ipairs({ "miku/logo.png", "miku ui/logo.png", "logo.png" }) do
-                if isfile and isfile(p) then
-                    local ok, res = pcall(getAsset, p)
-                    if ok and res and type(res) == "string" and #res > 0 then
-                        customLogoAsset = res
-                        break
-                    end
-                end
-            end
-        end
-    end)
-
-    local BrandIcon = Library:Create('ImageLabel', {
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.new(0, 8, 0.5, 0),
-        Size = UDim2.fromOffset(26, 26),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Image = customLogoAsset or 'rbxassetid://138635884129147',
-        ImageColor3 = Color3.fromRGB(255, 255, 255),
-        ScaleType = Enum.ScaleType.Fit,
-        ZIndex = 52,
-        Parent = BrandPill,
-    });
-
-    local BrandText = Library:Create('TextLabel', {
-        Name = 'BrandText',
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 42, 0, 4),
-        Size = UDim2.new(1, -48, 0.55, 0),
-        Font = Enum.Font.GothamBold,
-        Text = 'MIKU',
-        TextSize = 13,
-        TextColor3 = THEME.FontPrimary,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTransparency = 1,
-        Visible = false,
-        ZIndex = 52,
-        Parent = BrandPill,
-    });
-
-    local BrandSubText = Library:Create('TextLabel', {
-        Name = 'BrandSubText',
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 42, 0.58, 0),
-        Size = UDim2.new(1, -48, 0.4, 0),
-        Font = Enum.Font.Gotham,
-        Text = 'Rivals',
-        TextSize = 10,
-        TextColor3 = THEME.FontDim,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTransparency = 1,
-        Visible = false,
-        ZIndex = 52,
-        Parent = BrandPill,
-    });
-
-    -- Subtle pulse for branding icon (soft glow, not distracting)
-    task.spawn(function()
-        local t = 0;
-        while BrandIcon.Parent do
-            t = t + 1;
-            Tween(BrandIcon, TweenInfo.new(2.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                ImageTransparency = (t % 2 == 0) and 0.0 or 0.28,
-            });
-            task.wait(2.0);
-        end
-    end);
+    -- Branding header & logo removed (tabs positioned at top)
 
 
     local TabScroll = Library:Create('ScrollingFrame', {
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(8, 64),
-        Size = UDim2.new(1, -16, 1, -114),
+        Position = UDim2.fromOffset(8, 8),
+        Size = UDim2.new(1, -16, 1, -58),
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         ScrollBarThickness = 0,
@@ -3419,18 +3318,16 @@ function Library:CreateWindow(...)
 
         local targetW = expand and ExpandedSidebarW or CollapsedSidebarW;
 
+        HideTabTooltip();
+
         if not expand then
-            -- INSTANTLY hide brand text and all tab texts on frame 0
-            BrandText.Visible = false;
-            BrandText.TextTransparency = 1;
-            if BrandSubText then BrandSubText.Visible = false; BrandSubText.TextTransparency = 1; end
+            -- INSTANTLY hide all tab texts on frame 0
             for _, tab in ipairs(Window.Tabs) do
                 if tab.TabBtnText then
                     tab.TabBtnText.Visible = false;
                     tab.TabBtnText.TextTransparency = 1;
                 end
             end
-            HideTabTooltip();
         end
 
         local curSidebarTrans = Library.LiquidGlass and THEME.SidebarOpacity or math.clamp(1 - (Library.GlobalOpacity or 0.85) + 0.15, 0, 0.95);
@@ -3439,13 +3336,6 @@ function Library:CreateWindow(...)
             BackgroundColor3 = expand and Color3.fromRGB(18, 16, 28) or THEME.SidebarBg,
             BackgroundTransparency = curSidebarTrans,
         });
-
-        if expand then
-            BrandText.Visible = true;
-            Tween(BrandText, TI_FAST, { TextTransparency = 0 });
-            if BrandSubText then BrandSubText.Visible = true; Tween(BrandSubText, TI_FAST, { TextTransparency = 0 }); end
-            HideTabTooltip();
-        end
 
         local CollapsedContentX = 82;
         local ExpandedContentX = 196;
@@ -3635,6 +3525,38 @@ function Library:CreateWindow(...)
         ZIndex = 13,
         Parent = MainWindow,
     });
+
+    TabViewport.MouseEnter:Connect(function()
+        if isSidebarExpanded then
+            UpdateSidebarExpansion(false);
+        end
+    end);
+
+    HeaderBar.MouseEnter:Connect(function()
+        if isSidebarExpanded then
+            UpdateSidebarExpansion(false);
+        end
+    end);
+
+    MainWindow.MouseLeave:Connect(function()
+        if isSidebarExpanded then
+            UpdateSidebarExpansion(false);
+        end
+        HideTabTooltip();
+    end);
+
+    MainWindow.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if isSidebarExpanded then
+                local pos = input.Position;
+                local sPos = Sidebar.AbsolutePosition;
+                local sSize = Sidebar.AbsoluteSize;
+                if pos.X < sPos.X or pos.X > (sPos.X + sSize.X) or pos.Y < sPos.Y or pos.Y > (sPos.Y + sSize.Y) then
+                    UpdateSidebarExpansion(false);
+                end
+            end
+        end
+    end);
 
     local TabIcons = {
         ['rage'] = 'rbxassetid://81872698913435',        -- Lucide: swords (Crossed Swords)
@@ -3898,6 +3820,10 @@ function Library:CreateWindow(...)
         TabButton.MouseButton1Click:Connect(function()
             Library:PlaySound('click');
             Tab:OpenWindow();
+            HideTabTooltip();
+            if InputService.TouchEnabled and not InputService.MouseEnabled then
+                UpdateSidebarExpansion(false);
+            end
         end);
 
         function Tab:ShowTab() Tab:OpenWindow(); end
