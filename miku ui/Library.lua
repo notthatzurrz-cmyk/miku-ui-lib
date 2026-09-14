@@ -920,7 +920,14 @@ function Library:GetTextBounds(Text, FontObj, Size, Resolution)
     if typeof(FontObj) == 'EnumItem' then
         enumFont = FontObj;
     end;
-    local Bounds = TextService:GetTextSize(Text, Size, enumFont, Resolution or Vector2.new(1920, 1080))
+    local ok, Bounds = pcall(function()
+        return TextService:GetTextSize(Text, Size, enumFont, Resolution or Vector2.new(1920, 1080))
+    end);
+    if not ok or typeof(Bounds) ~= 'Vector2' then
+        local w = math.max(8, (#tostring(Text)) * (Size * 0.55));
+        cache[key] = { w, Size + 4 };
+        return w, Size + 4;
+    end;
     cache[key] = { Bounds.X, Bounds.Y };
     return Bounds.X, Bounds.Y
 end;
@@ -3312,6 +3319,12 @@ do
         Toggle:Display();
         Groupbox:AddBlank(Info.BlankSize or 5 + 2);
         Groupbox:Resize();
+        if Library:IsLayoutSuspended() then
+            Library._BuildYieldCount = (Library._BuildYieldCount or 0) + 1;
+            if Library._BuildYieldCount % 10 == 0 then
+                task.wait();
+            end;
+        end;
 
         Toggle.TextLabel = ToggleLabel;
         Toggle.Container = Container;
