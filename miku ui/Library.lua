@@ -796,16 +796,15 @@ function Library:EndSilentApply()
         self.ConfigLoading = false;
         self.SilentApplyDepth = 0;
     end;
-    task.wait();
-    if self.ConfigLoading == false then
-        -- Dependency visibility was suppressed per-option during load; reconcile once.
-        task.defer(function()
-            pcall(function()
-                self:UpdateDependencyBoxes();
-            end);
+    task.defer(function()
+        if self.ConfigLoading == true or self.Unloaded then
+            return;
+        end;
+        pcall(function()
+            self:UpdateDependencyBoxes();
         end);
-    end;
-    self:ResumeLayout();
+        self:ResumeLayout();
+    end);
 end;
 
 function Library:SuspendLayout()
@@ -842,7 +841,7 @@ function Library:FlushPendingLayout()
                     end;
                 end);
                 resized = resized + 1;
-                if resized % 24 == 0 or os.clock() - slice >= 0.016 then
+                if resized % 40 == 0 or os.clock() - slice >= 0.05 then
                     task.wait();
                     slice = os.clock();
                 end;
@@ -866,7 +865,7 @@ function Library:FlushPendingLayout()
                 Depbox:Update();
             end);
             updated = updated + 1;
-            if updated % 4 == 0 or os.clock() - slice >= 0.003 then
+            if updated % 32 == 0 or os.clock() - slice >= 0.05 then
                 task.wait();
                 slice = os.clock();
             end;
