@@ -1,3 +1,12 @@
+if not LPH_OBFUSCATED then
+    local function _lph_attr()
+    end
+    LPH_ATTRIBUTES = _lph_attr
+    VM = _lph_attr
+    NONE = _lph_attr
+end
+return (function() LPH_ATTRIBUTES(VM(NONE))
+
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local CoreGui = game:GetService('CoreGui');
@@ -68,6 +77,7 @@ local RainbowStep = 0
 local Hue = 0
 
 table.insert(Library.Signals, RenderStepped:Connect(function(Delta)
+    LPH_ATTRIBUTES(VM(NONE))
     if Library.Toggled ~= true then
         return
     end
@@ -339,6 +349,7 @@ function Library:MakeDraggable(Instance, Cutoff)
             endConn:Disconnect();
         end;
         moveConn = InputService.InputChanged:Connect(function(move)
+            LPH_ATTRIBUTES(VM(NONE))
             if not dragging then
                 return;
             end;
@@ -563,6 +574,7 @@ function Library:RunWhilePointerHeld(Input, Callback)
         end;
     end);
     local moved = InputService.InputChanged:Connect(function(move)
+        LPH_ATTRIBUTES(VM(NONE))
         if not holding then
             return;
         end;
@@ -700,6 +712,7 @@ function Library:EnsureMenuCursor()
 
     if not Library.MenuCursorConnection then
         Library.MenuCursorConnection = RenderStepped:Connect(function()
+            LPH_ATTRIBUTES(VM(NONE))
             local open = Library.Toggled == true;
             if not open then
                 LibraryHideMenuCursorDrawings();
@@ -5268,3 +5281,4 @@ Library.Accent = Library.AccentColor;
 
 getgenv().Library = Library
 return Library
+end)()
