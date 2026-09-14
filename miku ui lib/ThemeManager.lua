@@ -1,11 +1,13 @@
 local httpService = game:GetService('HttpService')
 local ThemeManager = {} do
-	ThemeManager.Folder = 'MikuUiLibSettings'
+	ThemeManager.Folder = 'LinoriaLibSettings'
 	-- if not isfolder(ThemeManager.Folder) then makefolder(ThemeManager.Folder) end
 
 	ThemeManager.Library = nil
+	ThemeManager.DefaultTheme = 'Yuno'
 	ThemeManager.BuiltInThemes = {
-		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"8c52ff","BackgroundColor":"141414","OutlineColor":"323232"}') },
+		['Yuno'] 			= { 0, httpService:JSONDecode('{"FontColor":"ece8f8","MainColor":"120e1c","AccentColor":"a85cff","BackgroundColor":"0a0810","OutlineColor":"302844"}') },
+		['Default'] 		= { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1c1c1c","AccentColor":"0055ff","BackgroundColor":"141414","OutlineColor":"323232"}') },
 		['BBot'] 			= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1e1e","AccentColor":"7e48a3","BackgroundColor":"232323","OutlineColor":"141414"}') },
 		['Fatality']		= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d"}') },
 		['Jester'] 			= { 4, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"db4467","BackgroundColor":"1c1c1c","OutlineColor":"373737"}') },
@@ -15,6 +17,22 @@ local ThemeManager = {} do
 		['Quartz'] 			= { 8, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"232330","AccentColor":"426e87","BackgroundColor":"1d1b26","OutlineColor":"27232f"}') },
 	}
 
+	local function ResolveOptions(self)
+		if type(Options) == 'table' then
+			return Options
+		end
+		if self.Library and type(self.Library.Options) == 'table' then
+			return self.Library.Options
+		end
+		if type(getgenv) == 'function' then
+			local ok, env = pcall(getgenv)
+			if ok and type(env) == 'table' and type(env.Options) == 'table' then
+				return env.Options
+			end
+		end
+		return nil
+	end
+
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
 		local data = customThemeData or self.BuiltInThemes[theme]
@@ -23,12 +41,13 @@ local ThemeManager = {} do
 
 		-- custom themes are just regular dictionaries instead of an array with { index, dictionary }
 
+		local options = ResolveOptions(self)
 		local scheme = data[2]
 		for idx, col in next, customThemeData or scheme do
 			self.Library[idx] = Color3.fromHex(col)
 			
-			if Options[idx] then
-				Options[idx]:SetValueRGB(Color3.fromHex(col))
+			if options and options[idx] then
+				options[idx]:SetValueRGB(Color3.fromHex(col))
 			end
 		end
 
@@ -37,15 +56,20 @@ local ThemeManager = {} do
 
 	function ThemeManager:ThemeUpdate()
 		-- This allows us to force apply themes without loading the themes tab :)
-		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
-		for i, field in next, options do
-			if Options and Options[field] then
-				self.Library[field] = Options[field].Value
+		local options = ResolveOptions(self)
+		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+		for i, field in next, fields do
+			if options and options[field] then
+				self.Library[field] = options[field].Value
 			end
 		end
 
 		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor);
+		self.Library.Accent = self.Library.AccentColor
 		self.Library:UpdateColorsUsingRegistry()
+		for _, fn in ipairs(self.Library._AccentCallbacks or {}) do
+			pcall(fn, self.Library.AccentColor)
+		end
 	end
 
 	function ThemeManager:LoadDefault()		
@@ -64,8 +88,13 @@ local ThemeManager = {} do
 		 	theme = self.DefaultTheme
 		end
 
+		local options = ResolveOptions(self)
 		if isDefault then
-			Options.ThemeManager_ThemeList:SetValue(theme)
+			if options and options.ThemeManager_ThemeList then
+				options.ThemeManager_ThemeList:SetValue(theme)
+			else
+				self:ApplyTheme(theme)
+			end
 		else
 			self:ApplyTheme(theme)
 		end
@@ -93,12 +122,13 @@ local ThemeManager = {} do
 		groupbox:AddDropdown('ThemeManager_ThemeList', { Text = 'Theme list', Values = ThemesArray, Default = 1 })
 
 		groupbox:AddButton('Set as default', function()
-			self:SaveDefault(Options.ThemeManager_ThemeList.Value)
-			self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_ThemeList.Value))
+			local options = ResolveOptions(self)
+			self:SaveDefault(options.ThemeManager_ThemeList.Value)
+			self.Library:Notify(string.format('Set default theme to %q', options.ThemeManager_ThemeList.Value))
 		end)
 
-		Options.ThemeManager_ThemeList:OnChanged(function()
-			self:ApplyTheme(Options.ThemeManager_ThemeList.Value)
+		ResolveOptions(self).ThemeManager_ThemeList:OnChanged(function()
+			self:ApplyTheme(ResolveOptions(self).ThemeManager_ThemeList.Value)
 		end)
 
 		groupbox:AddDivider()
@@ -107,23 +137,27 @@ local ThemeManager = {} do
 		groupbox:AddDivider()
 		
 		groupbox:AddButton('Save theme', function() 
-			self:SaveCustomTheme(Options.ThemeManager_CustomThemeName.Value)
+			local options = ResolveOptions(self)
+			self:SaveCustomTheme(options.ThemeManager_CustomThemeName.Value)
 
-			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
-			Options.ThemeManager_CustomThemeList:SetValue(nil)
+			options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+			options.ThemeManager_CustomThemeList:SetValue(nil)
 		end):AddButton('Load theme', function() 
-			self:ApplyTheme(Options.ThemeManager_CustomThemeList.Value) 
+			local options = ResolveOptions(self)
+			self:ApplyTheme(options.ThemeManager_CustomThemeList.Value) 
 		end)
 
 		groupbox:AddButton('Refresh list', function()
-			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
-			Options.ThemeManager_CustomThemeList:SetValue(nil)
+			local options = ResolveOptions(self)
+			options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+			options.ThemeManager_CustomThemeList:SetValue(nil)
 		end)
 
 		groupbox:AddButton('Set as default', function()
-			if Options.ThemeManager_CustomThemeList.Value ~= nil and Options.ThemeManager_CustomThemeList.Value ~= '' then
-				self:SaveDefault(Options.ThemeManager_CustomThemeList.Value)
-				self.Library:Notify(string.format('Set default theme to %q', Options.ThemeManager_CustomThemeList.Value))
+			local options = ResolveOptions(self)
+			if options.ThemeManager_CustomThemeList.Value ~= nil and options.ThemeManager_CustomThemeList.Value ~= '' then
+				self:SaveDefault(options.ThemeManager_CustomThemeList.Value)
+				self.Library:Notify(string.format('Set default theme to %q', options.ThemeManager_CustomThemeList.Value))
 			end
 		end)
 
@@ -133,11 +167,12 @@ local ThemeManager = {} do
 			self:ThemeUpdate()
 		end
 
-		Options.BackgroundColor:OnChanged(UpdateTheme)
-		Options.MainColor:OnChanged(UpdateTheme)
-		Options.AccentColor:OnChanged(UpdateTheme)
-		Options.OutlineColor:OnChanged(UpdateTheme)
-		Options.FontColor:OnChanged(UpdateTheme)
+		local options = ResolveOptions(self)
+		options.BackgroundColor:OnChanged(UpdateTheme)
+		options.MainColor:OnChanged(UpdateTheme)
+		options.AccentColor:OnChanged(UpdateTheme)
+		options.OutlineColor:OnChanged(UpdateTheme)
+		options.FontColor:OnChanged(UpdateTheme)
 	end
 
 	function ThemeManager:GetCustomTheme(file)
