@@ -342,7 +342,7 @@ local SaveManager = {} do
 					end
 					-- Skip stale per-weapon cosmetic entries that no longer have UI
 					-- controls. Applying them used to stall the client after inject.
-					if applied % 120 == 0 or os.clock() - slice >= 0.05 then
+					if applied % 250 == 0 or os.clock() - slice >= 0.08 then
 						task.wait()
 						slice = os.clock()
 					end
