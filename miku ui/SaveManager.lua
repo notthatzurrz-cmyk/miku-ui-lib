@@ -10,6 +10,29 @@ local function EnvTable(name)
 	return nil
 end
 
+local function ValuesMatch(a, b)
+	if a == b then
+		return true
+	end
+	if type(a) == 'number' or type(b) == 'number' then
+		return tonumber(a) == tonumber(b)
+	end
+	if type(a) ~= 'table' or type(b) ~= 'table' then
+		return false
+	end
+	for k, v in next, a do
+		if not ValuesMatch(v, b[k]) then
+			return false
+		end
+	end
+	for k in next, b do
+		if a[k] == nil then
+			return false
+		end
+	end
+	return true
+end
+
 local SaveManager = {} do
 	SaveManager.Folder = 'LinoriaLibSettings'
 	SaveManager.Ignore = {}
@@ -20,8 +43,9 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local toggles = EnvTable('Toggles')
-				if toggles and toggles[idx] then 
-					toggles[idx]:SetValue(data.value)
+				local toggle = toggles and toggles[idx]
+				if toggle and toggle.Value ~= (data.value == true) then
+					toggle:SetValue(data.value)
 				end
 			end,
 		},
@@ -31,8 +55,9 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local options = EnvTable('Options')
-				if options and options[idx] then 
-					options[idx]:SetValue(data.value)
+				local option = options and options[idx]
+				if option and tonumber(option.Value) ~= tonumber(data.value) then
+					option:SetValue(data.value)
 				end
 			end,
 		},
@@ -42,8 +67,9 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local options = EnvTable('Options')
-				if options and options[idx] then 
-					options[idx]:SetValue(data.value)
+				local option = options and options[idx]
+				if option and not ValuesMatch(option.Value, data.value) then
+					option:SetValue(data.value)
 				end
 			end,
 		},
@@ -70,9 +96,22 @@ local SaveManager = {} do
 					return
 				end
 				local hex = type(data.value) == 'string' and data.value:gsub('^#', '') or 'ffffff'
+				local wantTransparency = tonumber(data.transparency) or 0
+				local currentHex
+				if typeof(option.Value) == 'Color3' then
+					local okHex, encoded = pcall(function()
+						return option.Value:ToHex()
+					end)
+					if okHex then
+						currentHex = encoded
+					end
+				end
+				if currentHex == hex and (tonumber(option.Transparency) or 0) == wantTransparency then
+					return
+				end
 				local ok, color = pcall(Color3.fromHex, hex)
 				if ok and typeof(color) == 'Color3' then
-					option:SetValueRGB(color, data.transparency)
+					option:SetValueRGB(color, wantTransparency)
 				end
 			end,
 		},
@@ -88,8 +127,9 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local options = EnvTable('Options')
-				if options and options[idx] and type(options[idx].SetValue) == 'function' then
-					options[idx]:SetValue(data.colors or data.value)
+				local option = options and options[idx]
+				if option and type(option.SetValue) == 'function' then
+					option:SetValue(data.colors or data.value)
 				end
 			end,
 		},
@@ -105,14 +145,15 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local options = EnvTable('Options')
-				if options and options[idx] then 
-					options[idx]:SetValue({ data.key, data.mode })
-					if data.toggled ~= nil then
-						options[idx].Toggled = data.toggled == true
-						if type(options[idx].Update) == 'function' then
-							pcall(options[idx].Update, options[idx])
-						end
-					end
+				local option = options and options[idx]
+				if not option then
+					return
+				end
+				if option.Value ~= data.key or option.Mode ~= data.mode then
+					option:SetValue({ data.key, data.mode })
+				end
+				if data.toggled ~= nil then
+					option.Toggled = data.toggled == true
 				end
 			end,
 		},
@@ -123,8 +164,9 @@ local SaveManager = {} do
 			end,
 			Load = function(idx, data)
 				local options = EnvTable('Options')
-				if options and options[idx] and type(data.text) == 'string' then
-					options[idx]:SetValue(data.text)
+				local option = options and options[idx]
+				if option and type(data.text) == 'string' and option.Value ~= data.text then
+					option:SetValue(data.text)
 				end
 			end,
 		},
@@ -288,10 +330,15 @@ local SaveManager = {} do
 		end
 		local ok, err = pcall(function()
 			local slice = os.clock()
+			local applied = 0
 			for _, option in next, decoded.objects do
 				if type(option) == 'table' and option.type and self.Parser[option.type] then
 					pcall(self.Parser[option.type].Load, option.idx, option)
-					if os.clock() - slice >= 0.004 then
+					applied = applied + 1
+					-- Callbacks are suppressed while BeginSilentApply is active, so each
+					-- apply is just table/property writes. Yield rarely; during game load
+					-- frames are long and every task.wait() costs a whole frame.
+					if applied % 250 == 0 or os.clock() - slice >= 0.064 then
 						task.wait()
 						slice = os.clock()
 					end
