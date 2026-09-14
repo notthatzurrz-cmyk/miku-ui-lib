@@ -331,14 +331,18 @@ local SaveManager = {} do
 		local ok, err = pcall(function()
 			local slice = os.clock()
 			local applied = 0
+			local toggles = EnvTable('Toggles') or (self.Library and self.Library.Toggles) or {}
+			local options = EnvTable('Options') or (self.Library and self.Library.Options) or {}
 			for _, option in next, decoded.objects do
 				if type(option) == 'table' and option.type and self.Parser[option.type] then
-					pcall(self.Parser[option.type].Load, option.idx, option)
-					applied = applied + 1
-					-- Callbacks are suppressed while BeginSilentApply is active, so each
-					-- apply is just table/property writes. Yield rarely; during game load
-					-- frames are long and every task.wait() costs a whole frame.
-					if applied % 250 == 0 or os.clock() - slice >= 0.064 then
+					local idx = option.idx
+					if idx ~= nil and (toggles[idx] ~= nil or options[idx] ~= nil) then
+						pcall(self.Parser[option.type].Load, idx, option)
+						applied = applied + 1
+					end
+					-- Skip stale per-weapon cosmetic entries that no longer have UI
+					-- controls. Applying them used to stall the client after inject.
+					if applied % 120 == 0 or os.clock() - slice >= 0.05 then
 						task.wait()
 						slice = os.clock()
 					end
