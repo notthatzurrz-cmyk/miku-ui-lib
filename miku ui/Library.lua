@@ -195,14 +195,19 @@ function Library:CreateLabel(Properties, IsHud)
 end;
 
 function Library:GetGuiScale(Gui)
-    if typeof(Gui) == 'Instance' then
-        local uiScale = Gui:FindFirstChildOfClass('UIScale');
+    local scale = 1;
+    local current = Gui;
+    while typeof(current) == 'Instance' and current ~= Library.ScreenGui do
+        local uiScale = current:FindFirstChildOfClass('UIScale');
         if uiScale and type(uiScale.Scale) == 'number' and uiScale.Scale > 0 then
-            return uiScale.Scale;
+            scale = scale * uiScale.Scale;
         end;
+        current = current.Parent;
     end;
-
-    return 1;
+    if scale <= 0 then
+        return 1;
+    end;
+    return scale;
 end;
 
 function Library:ClampGuiToViewport(Gui)
@@ -255,7 +260,7 @@ end;
 
 local WindowDrag = {
     Target = nil;
-    Offset = nil;
+    Last = nil;
     MoveConn = nil;
     EndConn = nil;
 };
@@ -271,63 +276,50 @@ function Library:StopWindowDrag()
     end;
     local target = WindowDrag.Target;
     WindowDrag.Target = nil;
-    WindowDrag.Offset = nil;
+    WindowDrag.Last = nil;
     if target then
         Library:ClampGuiToViewport(target);
     end;
 end;
 
-function Library:StartWindowDrag(Target, GrabOffset)
+function Library:StartWindowDrag(Target)
     if typeof(Target) ~= 'Instance' then
         return;
     end;
     Library:StopWindowDrag();
     WindowDrag.Target = Target;
-    WindowDrag.Offset = GrabOffset;
-    local function applyDrag()
-        local target = WindowDrag.Target;
-        local grabOffset = WindowDrag.Offset;
-        if not target or not grabOffset then
-            return;
-        end;
-        local mouse = InputService:GetMouseLocation();
-        local scale = Library:GetGuiScale(target);
-        local absSize = target.AbsoluteSize;
-        local absX = mouse.X - grabOffset.X;
-        local absY = mouse.Y - grabOffset.Y;
-        local camera = workspace.CurrentCamera;
-        local vp = camera and camera.ViewportSize;
-        if vp then
-            local pad = 4;
-            local minX, minY = pad, pad;
-            local maxX = vp.X - absSize.X - pad;
-            local maxY = vp.Y - absSize.Y - pad;
-            if maxX < minX then minX, maxX = pad, pad; end;
-            if maxY < minY then minY, maxY = pad, pad; end;
-            absX = math.clamp(absX, minX, maxX);
-            absY = math.clamp(absY, minY, maxY);
-        end;
-        local ap = target.AnchorPoint;
-        local nextPos = UDim2.fromOffset(
-            math.floor((absX + absSize.X * ap.X) / scale + 0.5),
-            math.floor((absY + absSize.Y * ap.Y) / scale + 0.5)
-        );
-        if target.Position ~= nextPos then
-            target.Position = nextPos;
-        end;
-    end;
+    WindowDrag.Last = InputService:GetMouseLocation();
     WindowDrag.MoveConn = InputService.InputChanged:Connect(function(move)
         LPH_ATTRIBUTES(VM(NONE))
-        if move.UserInputType == Enum.UserInputType.MouseMovement or move.UserInputType == Enum.UserInputType.Touch then
-            applyDrag();
+        if move.UserInputType ~= Enum.UserInputType.MouseMovement and move.UserInputType ~= Enum.UserInputType.Touch then
+            return;
         end;
+        local target = WindowDrag.Target;
+        if not target or not target.Parent then
+            Library:StopWindowDrag();
+            return;
+        end;
+        local now = InputService:GetMouseLocation();
+        local last = WindowDrag.Last or now;
+        WindowDrag.Last = now;
+        local delta = now - last;
+        if delta.Magnitude < 0.5 then
+            return;
+        end;
+        local scale = Library:GetGuiScale(target);
+        local pos = target.Position;
+        target.Position = UDim2.new(
+            pos.X.Scale,
+            pos.X.Offset + (delta.X / scale),
+            pos.Y.Scale,
+            pos.Y.Offset + (delta.Y / scale)
+        );
     end);
     WindowDrag.EndConn = InputService.InputEnded:Connect(function(ended)
         if ended.UserInputType == Enum.UserInputType.MouseButton1 or ended.UserInputType == Enum.UserInputType.Touch then
             Library:StopWindowDrag();
         end;
     end);
-    applyDrag();
 end;
 
 function Library:MakeDraggable(Target, HandleOrCutoff)
@@ -341,17 +333,21 @@ function Library:MakeDraggable(Target, HandleOrCutoff)
 
     Target.Active = true;
     Handle.Active = true;
+    if Handle:IsA('GuiButton') then
+        Handle.AutoButtonColor = false;
+    end;
 
     Handle.InputBegan:Connect(function(Input)
         if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then
             return;
         end;
-        local mouse = InputService:GetMouseLocation();
-        if type(Cutoff) == 'number' and (mouse.Y - Handle.AbsolutePosition.Y) > Cutoff then
-            return;
+        if type(Cutoff) == 'number' then
+            local mouse = InputService:GetMouseLocation();
+            if (mouse.Y - Handle.AbsolutePosition.Y) > Cutoff then
+                return;
+            end;
         end;
-        local absPos = Target.AbsolutePosition;
-        Library:StartWindowDrag(Target, Vector2.new(mouse.X - absPos.X, mouse.Y - absPos.Y));
+        Library:StartWindowDrag(Target);
     end);
 end;
 
@@ -4541,12 +4537,14 @@ function Library:CreateWindow(...)
         BackgroundColor3 = 'MainColor';
     });
 
-    local TitleBar = Library:Create('Frame', {
+    local TitleBar = Library:Create('TextButton', {
         Active = true;
+        AutoButtonColor = false;
         BackgroundTransparency = 1;
         BorderSizePixel = 0;
         Position = UDim2.new(0, 0, 0, 0);
         Size = UDim2.new(1, 0, 0, 28);
+        Text = '';
         ZIndex = 6;
         Parent = Inner;
     });
@@ -4599,7 +4597,7 @@ function Library:CreateWindow(...)
     });
 
     local TabArea = Library:Create('Frame', {
-        Active = true;
+        Active = false;
         BackgroundTransparency = 1;
         BorderSizePixel = 0;
         Position = UDim2.new(0, 0, 0, 0);
@@ -4608,7 +4606,6 @@ function Library:CreateWindow(...)
         ZIndex = 3;
         Parent = MainSectionInner;
     });
-    Library:MakeDraggable(Outer, TabArea);
 
     local TabListLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, 6);
@@ -4708,6 +4705,7 @@ function Library:CreateWindow(...)
         });
 
         local TabButtonLabel = Library:CreateLabel({
+            Active = false;
             BackgroundTransparency = 1;
             Position = UDim2.new(0, 4, 0, 0);
             Size = UDim2.new(1, -8, 1, 0);
@@ -4720,6 +4718,9 @@ function Library:CreateWindow(...)
             ZIndex = 6;
             Parent = TabButton;
         });
+        pcall(function()
+            TabButtonLabel.Interactable = false;
+        end);
 
         local TabFrame = Library:Create('Frame', {
             Name = 'TabFrame',
@@ -5151,35 +5152,9 @@ function Library:CreateWindow(...)
         end;
 
         TabButton.InputBegan:Connect(function(Input)
-            if not Library:IsPointerInput(Input) then
-                return;
+            if Library:IsPointerInput(Input) then
+                Tab:ShowTab();
             end;
-            local startPos = InputService:GetMouseLocation();
-            local dragged = false;
-            local moveConn, endConn;
-            moveConn = InputService.InputChanged:Connect(function(move)
-                LPH_ATTRIBUTES(VM(NONE))
-                if move.UserInputType ~= Enum.UserInputType.MouseMovement and move.UserInputType ~= Enum.UserInputType.Touch then
-                    return;
-                end;
-                local now = InputService:GetMouseLocation();
-                if dragged or (now - startPos).Magnitude < 7 then
-                    return;
-                end;
-                dragged = true;
-                local absPos = Outer.AbsolutePosition;
-                Library:StartWindowDrag(Outer, Vector2.new(now.X - absPos.X, now.Y - absPos.Y));
-            end);
-            endConn = InputService.InputEnded:Connect(function(ended)
-                if not Library:IsPointerInput(ended) then
-                    return;
-                end;
-                if moveConn then moveConn:Disconnect(); end;
-                if endConn then endConn:Disconnect(); end;
-                if not dragged then
-                    Tab:ShowTab();
-                end;
-            end);
         end);
 
         TabButton.MouseEnter:Connect(function()
